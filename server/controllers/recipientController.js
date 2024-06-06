@@ -12,6 +12,7 @@ const Users = require('../models/User');
 const { ReKeyGenration } = require('../utils/ReKeyGeneration');
 const { ReEncryption } = require('../utils/ReEncryption');
 const FileModel = require('../models/File');
+const UsedKeyModel = require('../models/UsedKeys');
 const { TimeValidityTest } = require('../utils/TimeValidityTest');
 
 exports.register = async (req, res) => {
@@ -167,25 +168,34 @@ exports.mysharefiles = async (req, res) => {
 exports.decrypt = async(req,res) => {
 
     try {
-
+        
         const attributeSet = [req.user.name,req.user.email];
         const { file_id, secretkey, hashvalue} = req.body;
+        const usedkeys = await UsedKeyModel.find({key:secretkey});
         const fileData = await EncFileModel.findById(file_id);
-        const resTest = VerifiableTest(secretkey,fileData.secretkey,attributeSet.toString());
-
-        const sendKeyData = await SendKeyModel.find({users:req.user._id,file_data:file_id})
-        const timeDiffence = TimeValidityTest(Date.now(),sendKeyData[0].sendTime)
-        if(!(timeDiffence <= sendKeyData[0].expireTime)){
-            return  res.status(500).json({ message: 'Key Expired!' });
+        if(usedkeys.length == 0){
+            return  res.status(500).json({ message: 'Invalid Decryption Key' });
         }
-
+        const resTest = VerifiableTest(usedkeys[0].time.toString(),secretkey,fileData.secretkey,attributeSet.toString());
         if(!resTest) {
             return  res.status(500).json({ message: 'Invalid Decryption Key!' });
         }
-
         if(hashvalue != fileData.hashvalue ){
             return res.status(500).json({ message: "Hash Value Not Match!"});
+        }      
+        if(!usedkeys[0].isUsed){
+            await UsedKeyModel.findByIdAndUpdate(usedkeys[0]._id,{isUsed:true},{ new: true });
+        }else{
+            return res.status(500).json({ message: "Key Already Used!"});
         }
+        const timeDiffence = TimeValidityTest(Date.now(),usedkeys[0].sendTime)
+        if(!(timeDiffence <= usedkeys[0].expireTime)){
+            return  res.status(500).json({ message: 'Key Expired!' });
+        }
+        
+
+        
+        
 
         const DecData = Decryption(fileData.file_path,fileData.secretkey);
 

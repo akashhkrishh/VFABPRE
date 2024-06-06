@@ -13,6 +13,8 @@ const { SendMail } = require('../utils/SendMail');
 const { KeyGenration } = require('../utils/KeyGeneration');
 const { ReEncryption } = require('../utils/ReEncryption');
 const { ReKeyGenration } = require('../utils/ReKeyGeneration');
+const { OneTimeKeyGenration } = require('../utils/OneTimeKeyGeneration');
+const UsedKeyModel = require('../models/UsedKeys');
 
 exports.register = async (req, res) => {
     try {
@@ -224,12 +226,19 @@ exports.sendKey = async (req, res) => {
             originalname = fileKey.originalname;
         
 
-        const DecKey = KeyGenration(secretKey,userAttributes.toString());
+        const DecKey = OneTimeKeyGenration(secretKey,userAttributes.toString(),Date.now().toString());
+        const newUsedKey = new UsedKeyModel({
+            key:DecKey.secretKey,
+            time:DecKey.Time,
+            users:userData._id,
+            sendTime:Date.now()
+        });
+        await newUsedKey.save();
         // console.log(DecKey.secretKey)
         if(value == 'approved') {
             if(!data.isSend){
-                SendMail(userData.email,originalname, DecKey.secretKey, fileKey.hashvalue, data.expireTime);
-                await SendKeyModel.findByIdAndUpdate(id,{isSend:true,sendTime:Date.now()},{ new: true });
+                SendMail(userData.email,originalname, DecKey.secretKey, fileKey.hashvalue, newUsedKey.expireTime);
+                await SendKeyModel.findByIdAndUpdate(id,{isSend:true},{ new: true });
                 res.send("Message Send Successfully!");
             }else {
                 res.send("Message Already Send!");

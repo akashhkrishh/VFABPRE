@@ -4,8 +4,6 @@ const sendSchema = new mongoose.Schema({
 
     file_data: { type: mongoose.Types.ObjectId, ref: "encrypted_files", },
     users: { type: mongoose.Types.ObjectId, ref: "users", },
-    sendTime : {type: Date, default:Date.now()},
-    expireTime : {type: Number, default:3},
     status: {
         type: String,
         enum: ['approved', 'rejected', 'pending'],
